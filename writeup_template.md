@@ -27,56 +27,103 @@ You're reading it! Below I describe how I addressed each rubric point and where 
 ### Explain the Starter Code
 
 #### 1. Explain the functionality of what's provided in `motion_planning.py` and `planning_utils.py`
-These scripts contain a basic planning implementation that includes...
+`backyard_flyer_solution.py` script contain a basic planning implementation that move the drone in square box and reach again at same location. Where square box is calculated based on the defined waypoints. This is not going to work in real world scenario where we mention the start and goal location. This script working on 6 states which are defined as  
+    MANUAL = 0
+    ARMING = 1
+    TAKEOFF = 2
+    WAYPOINT = 3
+    LANDING = 4
+    DISARMING = 5
 
-And here's a lovely image of my results (ok this image has nothing to do with it, but it's a nice example of how to include images in your writeup!)
-![Top Down View](./misc/high_up.png)
+`motion_planning.py` script contain advance version of `backyard_flyer_solution.py` script where start location is drone current location and goal is 10 m ahead. This script working on 7 states which are defined as
+    MANUAL = auto()
+    ARMING = auto()
+    TAKEOFF = auto()
+    WAYPOINT = auto()
+    LANDING = auto()
+    DISARMING = auto()
+    PLANNING = auto()
+    
+which is taking one extra PLANNING state. This state is executing after the drone is armed. Basically it is planning the path based on the algorithm used in `planning_utils.py`. And once the path is planned the waypoint is send to the simulator and further action is taken care by this script.
 
-Here's | A | Snappy | Table
---- | --- | --- | ---
-1 | `highlight` | **bold** | 7.41
-2 | a | b | c
-3 | *italic* | text | 403
-4 | 2 | 3 | abcd
+`planning_utils.py` script contain the algorithm for path planning. Currently it is used to generate the map grid on that it is using the A* search algorithm to find the path between start to goal node.
 
 ### Implementing Your Path Planning Algorithm
 
 #### 1. Set your global home position
-Here students should read the first line of the csv file, extract lat0 and lon0 as floating point values and use the self.set_home_position() method to set global home. Explain briefly how you accomplished this in your code.
 
+The below modification in `motion_planning.py` file
 
-And here is a lovely picture of our downtown San Francisco environment from above!
-![Map of SF](./misc/map.png)
+Using a csv package i have read the `colliders.csv` file. Because the lat0 and lon0 stored at first line so i have created read only the first line of the file and split the data and copnverted the data in float values. For that i have created `getLatLonFromColliders(fileName)` member function of class which is taking the filename and return the lat0 and lon0 float value.
+
+Then i have used `self.set_home_position()` method to set global home. I have written below code for this implementation
+
+`self.set_home_position(lon0, lat0,0.0)`
 
 #### 2. Set your current local position
-Here as long as you successfully determine your local position relative to global home you'll be all set. Explain briefly how you accomplished this in your code.
 
+The below modification in `motion_planning.py` file
 
-Meanwhile, here's a picture of me flying through the trees!
-![Forest Flying](./misc/in_the_trees.png)
+Because my current global position is in geodectic coordinate (latitute, longitude, altitude) system. But to work by the drone i need to convert them in local North, East and Down coordinate system. To do that i have calculated my local position relative to global home using `global_to_local()` function from `udacidrone.frame_utils`. 
 
 #### 3. Set grid start position from local position
-This is another step in adding flexibility to the start location. As long as it works you're good to go!
+
+The below modification in `motion_planning.py` file
+
+Here i have converted start position to current position rather than map center as below
+Where `drone_local_position` is drone local position
+
+`grid_start = (int(drone_local_position[0]-north_offset),int(drone_local_position[1]-east_offset))`
 
 #### 4. Set grid goal position from geodetic coords
-This step is to add flexibility to the desired goal location. Should be able to choose any (lat, lon) within the map and have it rendered to a goal location on the grid.
 
+The below modification in `motion_planning.py` file
+
+For goal position i have taken one point in lat, lon coordinates as defined below
+`target_global_position=np.array([-122.398362,37.793677,0.0])`
+
+But to work with drone i have converted that in local North, East and Down coordinate system relative to global home using `global_to_local()` function. And the calculated the grid goal position as below
+
+```
+        #arbitrary lat, lon point on grid
+        target_global_position=np.array([-122.398362,37.793677,0.0])
+        #Conversion of geodetic to local coordinate 
+        drone_goal_local_position=global_to_local(target_global_position, self.global_home)
+        grid_goal = (int(drone_goal_local_position[0]-north_offset), int(drone_goal_local_position[1]-east_offset))
+```
 #### 5. Modify A* to include diagonal motion (or replace A* altogether)
-Minimal requirement here is to modify the code in planning_utils() to update the A* implementation to include diagonal motions on the grid that have a cost of sqrt(2), but more creative solutions are welcome. Explain the code you used to accomplish this step.
+
+Minimal requirement here is to modify the code in planning_utils() to update the A* implementation to include diagonal motions on the grid that have a cost of sqrt(2), but more creative solutions are welcome.
+
+The below modification in `planning_utils.py` file
+
+To Implement the above requirement i have done below steps
+
+1. Added four new action for diagonal motions with cost of sqrt(2)
+    NORTH_EAST = (-1, 1, sqrt(2))
+    SOUTH_EAST = (1, 1, sqrt(2))
+    NORTH_WEST = (-1, -1, sqrt(2))
+    SOUTH_WEST = (1, -1, sqrt(2))
+
+2. Added four new if condition in valid_actions method to check that digonal actions do not make the drone fly off the grid and into obstacles. Invalid actions get removed from the list of valid actions.
 
 #### 6. Cull waypoints 
-For this step you can use a collinearity test or ray tracing method like Bresenham. The idea is simply to prune your path of unnecessary waypoints. Explain the code you used to accomplish this step.
 
+For this step you can use a collinearity test or ray tracing method like Bresenham. The idea is simply to prune your path of unnecessary waypoints.
+
+The below modification in `planning_utils.py` file
+
+I have used collinearity test with an epsilon = 5 to pruned the path and remove the unnecessary waypoints. pruned path is returned from `prune_path` function.
 
 
 ### Execute the flight
 #### 1. Does it work?
-It works!
+It works fine!
+I have given the goal position as lat, lon value and it is successfully moved to that location. Below os the result image
+
+![Result Image](./misc/result.png)
+
 
 ### Double check that you've met specifications for each of the [rubric](https://review.udacity.com/#!/rubrics/1534/view) points.
-  
-# Extra Challenges: Real World Planning
-
-For an extra challenge, consider implementing some of the techniques described in the "Real World Planning" lesson. You could try implementing a vehicle model to take dynamic constraints into account, or implement a replanning method to invoke if you get off course or encounter unexpected obstacles.
 
 
